@@ -20,6 +20,35 @@ function renderWikiText(text: string) {
   return nodes;
 }
 
+function FeedTitle() {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const textRef = useRef<SVGTextElement>(null);
+
+  useEffect(() => {
+    const svg = svgRef.current;
+    const text = textRef.current;
+    if (!svg || !text) return;
+    const bb = text.getBBox();
+    svg.setAttribute('viewBox', `${bb.x} ${bb.y} ${bb.width} ${bb.height}`);
+    svg.style.aspectRatio = `${bb.width} / ${bb.height}`;
+  }, []);
+
+  return (
+    <div className="feed-title-wrapper">
+      <svg ref={svgRef} className="feed-title" width="100%" aria-label="HISTORYFLOW">
+        <text
+          ref={textRef}
+          x="0" y="0.85em"
+          fontFamily="-apple-system, 'SF Pro Display', system-ui, sans-serif"
+          fontWeight="700"
+          fontSize="100"
+          fill="currentColor"
+        >HISTORYFLOW</text>
+      </svg>
+    </div>
+  );
+}
+
 export default function App() {
   const [articles, setArticles] = useState<WikiArticle[]>([]);
   const [loading, setLoading] = useState(false);
@@ -90,7 +119,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <div className="feed-title">HISTORYFLOW</div>
+      <FeedTitle />
       <main className="feed">
         {articles.map((article, i) => {
           const isExpanded = expanded.has(article.title);

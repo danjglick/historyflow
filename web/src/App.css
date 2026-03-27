@@ -91,7 +91,7 @@ body {
 
 /* Feed */
 .feed {
-  padding-top: calc(20px + env(safe-area-inset-top));
+  padding-top: 0;
   padding-bottom: calc(60px + env(safe-area-inset-bottom));
   max-width: var(--feed-max-width);
   width: 100%;
@@ -99,18 +99,26 @@ body {
 }
 
 /* Feed title */
-.feed-title {
+.feed-title-wrapper {
   max-width: var(--feed-max-width);
   width: 100%;
   margin: 0 auto;
-  text-align: center;
-  font-family: -apple-system, 'SF Pro Display', system-ui, sans-serif;
-  font-size: clamp(48px, 14vw, 96px);
-  font-weight: 700;
-  letter-spacing: -0.03em;
+  padding: calc(60px + env(safe-area-inset-top)) 22px 70px;
   color: var(--text-title);
-  padding: calc(60px + env(safe-area-inset-top)) 22px 52px;
-  line-height: 1;
+}
+
+@media (max-width: 480px) {
+  .feed-title-wrapper {
+    padding-left: 18px;
+    padding-right: 18px;
+    padding-bottom: 60px;
+  }
+}
+
+.feed-title {
+  display: block;
+  width: 100%;
+  overflow: visible;
 }
 
 /* Article card — no borders, just breathing room */
@@ -127,17 +135,17 @@ body {
 /* Title: system sans-serif, prominent */
 .article-title {
   font-family: -apple-system, 'SF Pro Display', system-ui, sans-serif;
-  font-size: 20px;
+  font-size: 26px;
   font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.3px;
+  line-height: 1.2;
+  letter-spacing: -0.5px;
   color: var(--text-title);
   margin-bottom: 16px;
 }
 
 @media (max-width: 480px) {
   .article-title {
-    font-size: 18px;
+    font-size: 22px;
   }
 }
 

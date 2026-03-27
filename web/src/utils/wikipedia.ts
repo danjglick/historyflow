@@ -89,7 +89,7 @@ export async function fetchArticlesBatch(titles: string[]): Promise<WikiArticle[
         for (const page of Object.values(pages)) {
           if ('missing' in page) continue;
           if (page.pageprops?.disambiguation !== undefined) continue;
-          if (/^list of /i.test(page.title)) continue;
+          if (/^(list of|timeline of|index of|outline of|lists of)/i.test(page.title)) continue;
           if (!page.extract?.trim()) continue;
           articleCache.set(page.title, {
             title: page.title,
