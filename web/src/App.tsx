@@ -3,18 +3,49 @@ import { searchHistoryArticles, fetchArticlesBatch, fetchFullArticle } from './u
 import type { WikiArticle } from './utils/wikipedia';
 import './App.css';
 
-function renderWikiText(text: string) {
-  const nodes: React.ReactNode[] = [];
+interface Section {
+  heading: string;
+  lines: string[];
+}
+
+function parseNamedSections(text: string): Section[] {
+  const sections: Section[] = [];
+  let currentHeading: string | null = null;
+  let currentLines: string[] = [];
+
   for (const line of text.split('\n')) {
-    const h3 = line.match(/^===\s*(.+?)\s*===$/);
-    const h2 = line.match(/^==\s*(.+?)\s*==$/);
-    const trimmed = line.trim();
-    if (h3) {
-      nodes.push(<h4 key={nodes.length} className="section-h3">{h3[1]}</h4>);
-    } else if (h2) {
-      nodes.push(<h3 key={nodes.length} className="section-h2">{h2[1]}</h3>);
-    } else if (trimmed) {
-      nodes.push(<p key={nodes.length} className="article-extract">{trimmed}</p>);
+    const h2 = !line.startsWith('===') && line.match(/^==\s*(.+?)\s*==$/);
+    if (h2) {
+      if (currentHeading !== null) {
+        sections.push({ heading: currentHeading, lines: currentLines });
+      }
+      currentHeading = h2[1];
+      currentLines = [];
+    } else if (currentHeading !== null) {
+      currentLines.push(line);
+    }
+  }
+  if (currentHeading !== null) {
+    sections.push({ heading: currentHeading, lines: currentLines });
+  }
+
+  return sections.filter(s => s.lines.some(l => l.trim()));
+}
+
+function renderSections(sections: Section[], count: number) {
+  const nodes: React.ReactNode[] = [];
+  for (let i = 0; i < count && i < sections.length; i++) {
+    const s = sections[i];
+    nodes.push(<h3 key={`h-${i}`} className="section-h2">{s.heading}</h3>);
+    for (let j = 0; j < s.lines.length; j++) {
+      const line = s.lines[j];
+      const h3 = line.match(/^===\s*(.+?)\s*===$/);
+      const trimmed = line.trim();
+      if (h3) {
+        nodes.push(<h4 key={`h3-${i}-${j}`} className="section-h3">{h3[1]}</h4>);
+      } else if (trimmed) {
+        nodes.push(<p key={`p-${i}-${j}`} className="article-extract">{trimmed}</p>);
+      }
     }
   }
   return nodes;
@@ -53,13 +84,11 @@ export default function App() {
   const [articles, setArticles] = useState<WikiArticle[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [fullTexts, setFullTexts] = useState<Map<string, string>>(new Map());
+  const [namedSections, setNamedSections] = useState<Map<string, Section[]>>(new Map());
+  const [sectionsVisible, setSectionsVisible] = useState<Map<string, number>>(new Map());
   const [expanding, setExpanding] = useState<Set<string>>(new Set());
   const sentinelRef = useRef<HTMLDivElement>(null);
   const loadingRef = useRef(false);
-  // Start at a random page of results so every session feels different
-  const offsetRef = useRef(Math.floor(Math.random() * 50) * 20);
   const hasMoreRef = useRef(true);
 
   const loadMore = useCallback(async () => {
@@ -69,10 +98,9 @@ export default function App() {
     setError(null);
 
     try {
-      const { titles, nextOffset } = await searchHistoryArticles(offsetRef.current);
+      const { titles, nextOffset } = await searchHistoryArticles();
       const valid = await fetchArticlesBatch(titles);
       setArticles(prev => [...prev, ...valid]);
-      offsetRef.current = nextOffset ?? offsetRef.current + 20;
       hasMoreRef.current = nextOffset !== null;
     } catch (e) {
       console.error('[HistoryFlow] load failed:', e);
@@ -83,19 +111,18 @@ export default function App() {
     }
   }, []);
 
-  const toggleExpand = useCallback(async (title: string) => {
-    if (expanded.has(title)) {
-      setExpanded(prev => { const s = new Set(prev); s.delete(title); return s; });
-      return;
-    }
-    if (!fullTexts.has(title)) {
+  const revealNextSection = useCallback(async (title: string) => {
+    if (!namedSections.has(title)) {
       setExpanding(prev => new Set(prev).add(title));
       const text = await fetchFullArticle(title);
-      setFullTexts(prev => new Map(prev).set(title, text ?? ''));
+      const sections = text ? parseNamedSections(text) : [];
+      setNamedSections(prev => new Map(prev).set(title, sections));
+      setSectionsVisible(prev => new Map(prev).set(title, 1));
       setExpanding(prev => { const s = new Set(prev); s.delete(title); return s; });
+    } else {
+      setSectionsVisible(prev => new Map(prev).set(title, (prev.get(title) ?? 0) + 1));
     }
-    setExpanded(prev => new Set(prev).add(title));
-  }, [expanded, fullTexts]);
+  }, [namedSections]);
 
   // Initial load
   useEffect(() => {
@@ -122,25 +149,34 @@ export default function App() {
       <FeedTitle />
       <main className="feed">
         {articles.map((article, i) => {
-          const isExpanded = expanded.has(article.title);
+          const sections = namedSections.get(article.title);
+          const nVisible = sectionsVisible.get(article.title) ?? 0;
           const isExpanding = expanding.has(article.title);
-          const fullText = fullTexts.get(article.title);
+          const allVisible = sections !== undefined && nVisible >= sections.length;
+
           return (
             <article key={`${article.title}-${i}`} className="article">
               <h2 className="article-title">{article.title}</h2>
-              {isExpanded && fullText
-                ? <div className="article-body">{renderWikiText(fullText)}</div>
-                : <div className="article-body">{article.extract.split('\n').filter(Boolean).map((p, j) => <p key={j} className="article-extract">{p.trim()}</p>)}</div>
-              }
-              {!isExpanded && (
-                <button
-                  onClick={() => toggleExpand(article.title)}
-                  className="expand-btn"
-                  disabled={isExpanding}
-                >
-                  {isExpanding ? 'Loading…' : 'Read More'}
-                </button>
-              )}
+              <div className="article-body">
+                {article.extract.split('\n').filter(Boolean).map((p, j) =>
+                  <p key={j} className="article-extract">{p.trim()}</p>
+                )}
+                {sections && renderSections(sections, nVisible)}
+              </div>
+              <button
+                onClick={() => {
+                  if (allVisible) {
+                    setNamedSections(prev => { const m = new Map(prev); m.delete(article.title); return m; });
+                    setSectionsVisible(prev => { const m = new Map(prev); m.delete(article.title); return m; });
+                  } else {
+                    revealNextSection(article.title);
+                  }
+                }}
+                className="expand-btn"
+                disabled={isExpanding}
+              >
+                {isExpanding ? 'Loading…' : allVisible ? 'Collapse' : 'Read More'}
+              </button>
             </article>
           );
         })}

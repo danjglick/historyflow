@@ -12,11 +12,18 @@ interface SearchResult {
 // Simple session cache so repeated loads don't re-fetch the same articles
 const articleCache = new Map<string, WikiArticle>();
 
-export async function searchHistoryArticles(offset = 0): Promise<SearchResult> {
+// Each query tracks its own offset and exhaustion state independently
+const queries = [
+  { term: 'intitle:history',  offset: Math.floor(Math.random() * 50) * 20, hasMore: true },
+  { term: 'intitle:politics', offset: Math.floor(Math.random() * 20) * 20, hasMore: true },
+  { term: 'intitle:culture',  offset: Math.floor(Math.random() * 20) * 20, hasMore: true },
+];
+
+async function runSearch(term: string, offset: number): Promise<{ titles: string[]; nextOffset: number | null }> {
   const params = new URLSearchParams({
     action: 'query',
     list: 'search',
-    srsearch: 'intitle:history',
+    srsearch: term,
     format: 'json',
     origin: '*',
     srnamespace: '0',
@@ -45,61 +52,94 @@ export async function searchHistoryArticles(offset = 0): Promise<SearchResult> {
   const data = await res.json();
   if (!data.query?.search) throw new Error(`Unexpected search response: ${JSON.stringify(data).slice(0, 200)}`);
 
-  const titles: string[] = data.query.search.map((r: { title: string }) => r.title);
-  // Fisher-Yates shuffle so each batch arrives in unpredictable order
-  for (let i = titles.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [titles[i], titles[j]] = [titles[j], titles[i]];
-  }
-  const nextOffset: number | null = data.continue?.sroffset ?? null;
-
-  return { titles, nextOffset };
+  return {
+    titles: data.query.search.map((r: { title: string }) => r.title),
+    nextOffset: data.continue?.sroffset ?? null,
+  };
 }
 
-// Fetch all titles in a single batch request instead of 20 parallel calls
+export async function searchHistoryArticles(): Promise<SearchResult> {
+  const active = queries.filter(q => q.hasMore);
+  if (active.length === 0) return { titles: [], nextOffset: null };
+
+  const results = await Promise.allSettled(
+    active.map(q => runSearch(q.term, q.offset))
+  );
+
+  let allTitles: string[] = [];
+  results.forEach((result, i) => {
+    if (result.status === 'fulfilled') {
+      allTitles = [...allTitles, ...result.value.titles];
+      active[i].offset = result.value.nextOffset ?? active[i].offset + 20;
+      active[i].hasMore = result.value.nextOffset !== null;
+    }
+  });
+
+  // Fisher-Yates shuffle so each batch arrives in unpredictable order
+  for (let i = allTitles.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [allTitles[i], allTitles[j]] = [allTitles[j], allTitles[i]];
+  }
+
+  if (allTitles.length === 0) throw new Error('All searches failed');
+
+  const anyMore = queries.some(q => q.hasMore);
+  return { titles: allTitles, nextOffset: anyMore ? 1 : null };
+}
+
+async function fetchBatchChunk(titles: string[]): Promise<void> {
+  const params = new URLSearchParams({
+    action: 'query',
+    titles: titles.join('|'),
+    prop: 'extracts|pageprops|info',
+    exintro: 'true',
+    explaintext: 'true',
+    ppprop: 'disambiguation',
+    inprop: 'url',
+    redirects: '1',
+    format: 'json',
+    origin: '*',
+  });
+  const res = await fetch(`https://en.wikipedia.org/w/api.php?${params}`);
+  if (!res.ok) return;
+  const data = await res.json();
+  const pages = data.query?.pages as Record<string, {
+    title: string;
+    extract?: string;
+    fullurl?: string;
+    pageprops?: { disambiguation?: string };
+    missing?: string;
+  }> ?? {};
+
+  for (const page of Object.values(pages)) {
+    if ('missing' in page) continue;
+    if (page.pageprops?.disambiguation !== undefined) continue;
+    if (/^(list of|timeline of|index of|outline of|lists of)/i.test(page.title)) continue;
+    if (/\b(journal|review|magazine|museum|channel|institute|professor|department)\b/i.test(page.title)) continue;
+    if (!page.extract?.trim()) continue;
+    const firstSentence = page.extract.split(/\.[\s\n]/)[0];
+    if (/\b(developer|publisher|book|journal|monographic|monograph|platform|author|channel|podcast|album)\b/i.test(firstSentence)) continue;
+    articleCache.set(page.title, {
+      title: page.title,
+      extract: page.extract.trim(),
+      url: page.fullurl ?? `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title)}`,
+    });
+  }
+}
+
+// Fetch all titles in batches of 50 (Wikipedia API limit)
 export async function fetchArticlesBatch(titles: string[]): Promise<WikiArticle[]> {
-  // Return cached articles immediately; only fetch uncached ones
   const uncached = titles.filter(t => !articleCache.has(t));
 
   if (uncached.length > 0) {
+    const chunks: string[][] = [];
+    for (let i = 0; i < uncached.length; i += 50) {
+      chunks.push(uncached.slice(i, i + 50));
+    }
     try {
-      const params = new URLSearchParams({
-        action: 'query',
-        titles: uncached.join('|'),
-        prop: 'extracts|pageprops|info',
-        exintro: 'true',
-        explaintext: 'true',
-        ppprop: 'disambiguation',
-        inprop: 'url',
-        redirects: '1',
-        format: 'json',
-        origin: '*',
-      });
-      const res = await fetch(`https://en.wikipedia.org/w/api.php?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        const pages = data.query?.pages as Record<string, {
-          title: string;
-          extract?: string;
-          fullurl?: string;
-          pageprops?: { disambiguation?: string };
-          missing?: string;
-        }> ?? {};
-
-        for (const page of Object.values(pages)) {
-          if ('missing' in page) continue;
-          if (page.pageprops?.disambiguation !== undefined) continue;
-          if (/^(list of|timeline of|index of|outline of|lists of)/i.test(page.title)) continue;
-          if (!page.extract?.trim()) continue;
-          articleCache.set(page.title, {
-            title: page.title,
-            extract: page.extract.trim(),
-            url: page.fullurl ?? `https://en.wikipedia.org/wiki/${encodeURIComponent(page.title)}`,
-          });
-        }
-      }
+      await Promise.all(chunks.map(fetchBatchChunk));
     } catch {
-      // Network failure — return whatever is in cache for this batch
+      // Network failure — return whatever is in cache
     }
   }
 

@@ -1,6 +1,6 @@
 {
-  "name": "HistoryFlow",
-  "short_name": "HistoryFlow",
+  "name": "HISTORYFLOW",
+  "short_name": "HISTORYFLOW",
   "description": "A distraction-free feed of Wikipedia history articles",
   "start_url": "/",
   "display": "standalone",
