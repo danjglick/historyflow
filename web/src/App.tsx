@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { searchHistoryArticles, fetchArticlesBatch, fetchFullArticle } from './utils/wikipedia';
-import type { WikiArticle } from './utils/wikipedia';
+import { searchHistoryArticles, fetchArticlesBatch, fetchArticleSections } from './utils/wikipedia';
+import type { WikiArticle, WikiSection } from './utils/wikipedia';
 import './App.css';
 
 const ABBREV = /^([A-Z]|Mr|Mrs|Ms|Dr|Prof|Sr|Jr|vs|St|Mt|Lt|Gen|Col|Maj|Capt|Gov|Sen|Rep|Rev|Dept|Inc|Corp|Ltd|est|approx|U\.S|U\.K|D\.C|i\.e|e\.g|etc|ca|c|pp|vol|no|lit)$/i;
@@ -20,45 +20,14 @@ function getFirstSentence(text: string): string {
   return result;
 }
 
-interface Section { heading: string; lines: string[]; }
-
-function parseNamedSections(text: string): Section[] {
-  const sections: Section[] = [];
-  let current: Section | null = null;
-
-  for (const line of text.split('\n')) {
-    if (line.startsWith('===')) {
-      // subsection — treat as content
-      if (current) current.lines.push(line);
-      continue;
-    }
-    const h2 = line.match(/^==\s*(.+?)\s*==$/);
-    if (h2) {
-      if (current) sections.push(current);
-      current = { heading: h2[1], lines: [] };
-    } else if (current) {
-      current.lines.push(line);
-    }
-  }
-  if (current) sections.push(current);
-  return sections;
-}
-
-function renderSections(sections: Section[], count: number) {
+function renderSections(sections: WikiSection[], count: number) {
   const nodes: React.ReactNode[] = [];
   for (let i = 0; i < count && i < sections.length; i++) {
     const s = sections[i];
-    nodes.push(<h3 key={`h-${i}`} className="section-h2">{s.heading}</h3>);
-    for (let j = 0; j < s.lines.length; j++) {
-      const line = s.lines[j].trim();
-      if (!line) continue;
-      const h3 = line.match(/^===\s*(.+?)\s*===$/);
-      if (h3) {
-        nodes.push(<h4 key={`sh-${i}-${j}`} className="section-h3">{h3[1]}</h4>);
-      } else {
-        nodes.push(<p key={`p-${i}-${j}`} className="article-extract">{line}</p>);
-      }
-    }
+    nodes.push(
+      <h3 key={`h-${i}`} className="section-h2">{s.heading}</h3>,
+      <div key={`c-${i}`} className="section-content" dangerouslySetInnerHTML={{ __html: s.html }} />,
+    );
   }
   return nodes;
 }
@@ -97,7 +66,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [leadExpanded, setLeadExpanded] = useState<Set<string>>(new Set());
-  const [namedSections, setNamedSections] = useState<Map<string, Section[]>>(new Map());
+  const [namedSections, setNamedSections] = useState<Map<string, WikiSection[]>>(new Map());
   const [sectionsVisible, setSectionsVisible] = useState<Map<string, number>>(new Map());
   const [expanding, setExpanding] = useState<Set<string>>(new Set());
   const sentinelRef = useRef<HTMLDivElement>(null);
@@ -127,8 +96,7 @@ export default function App() {
   const revealNextSection = useCallback(async (title: string) => {
     if (!namedSections.has(title)) {
       setExpanding(prev => new Set(prev).add(title));
-      const text = await fetchFullArticle(title);
-      const sections = text ? parseNamedSections(text) : [];
+      const sections = await fetchArticleSections(title);
       setNamedSections(prev => new Map(prev).set(title, sections));
       if (sections.length > 0) {
         setSectionsVisible(prev => new Map(prev).set(title, 1));

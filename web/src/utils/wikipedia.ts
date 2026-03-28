@@ -4,6 +4,11 @@ export interface WikiArticle {
   url: string;
 }
 
+export interface WikiSection {
+  heading: string;
+  html: string;
+}
+
 interface SearchResult {
   titles: string[];
   nextOffset: number | null;
@@ -115,7 +120,6 @@ async function fetchBatchChunk(titles: string[]): Promise<void> {
     if ('missing' in page) continue;
     if (page.pageprops?.disambiguation !== undefined) continue;
     if (/^(list of|timeline of|index of|outline of|lists of)/i.test(page.title)) continue;
-    //if (/\b(journal|review|magazine|museum|channel|institute|prize|professor|department)\b/i.test(page.title)) continue;
     if (!page.extract?.trim()) continue;
     const firstSentence = page.extract.split(/\.[\s\n]/)[0];
     if (/\b(journal|film|review|account|exhibition|magazine|museum|channel|institute|prize|professor|department|professional|departments|singer|developer|version|publisher|documentary|book|volume|organization|organisation|lecture|examination|journal|club|monographic|website|programme|committee|games|library|list|association|monograph|platform|magazine|project|band|museum|publication|initiative|author|ministry|department|channel|podcast|album)\b/i.test(firstSentence)) continue;
@@ -149,27 +153,64 @@ export async function fetchArticlesBatch(titles: string[]): Promise<WikiArticle[
   });
 }
 
-export async function fetchFullArticle(title: string): Promise<string | null> {
+const SKIP_SECTIONS = /^(see also|references|external links|notes|further reading|bibliography|footnotes)$/i;
+
+const CLUTTER = [
+  '.mw-editsection', 'sup.reference', '.reflist', '.navbox',
+  '.metadata', '.mbox-small', '.ambox', '.infobox', '.thumb',
+  'figure', '.hatnote', '.mw-empty-elt', 'style',
+];
+
+export async function fetchArticleSections(title: string): Promise<WikiSection[]> {
   try {
     const params = new URLSearchParams({
-      action: 'query',
-      titles: title,
-      prop: 'extracts',
-      explaintext: 'true',
+      action: 'parse',
+      page: title,
+      prop: 'text',
       format: 'json',
       origin: '*',
+      redirects: '1',
     });
     const res = await fetch(`https://en.wikipedia.org/w/api.php?${params}`);
-    if (!res.ok) return null;
+    if (!res.ok) return [];
     const data = await res.json();
-    const pages = data.query.pages as Record<string, { extract?: string }>;
-    const page = Object.values(pages)[0];
-    const raw = page?.extract?.trim() ?? null;
-    if (!raw) return null;
-    const cutoff = /^==\s*(see also|notes|references|external links|further reading)\s*==/im;
-    const match = raw.search(cutoff);
-    return match === -1 ? raw : raw.slice(0, match).trimEnd();
-  } catch {
-    return null;
+    const html: string = data.parse?.text?.['*'];
+    if (!html) return [];
+
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    CLUTTER.forEach(sel => doc.querySelectorAll(sel).forEach(el => el.remove()));
+
+    const sections: WikiSection[] = [];
+
+    for (const div of Array.from(doc.querySelectorAll('.mw-heading2'))) {
+      const h2 = div.querySelector('h2');
+      const heading = h2?.textContent?.trim() ?? '';
+      if (!heading || SKIP_SECTIONS.test(heading)) continue;
+
+      const parts: string[] = [];
+      let node = div.nextElementSibling;
+      while (node && !node.classList.contains('mw-heading2')) {
+        node.querySelectorAll('a').forEach(a => {
+          const href = a.getAttribute('href') ?? '';
+          if (href.startsWith('/wiki/') && !href.includes(':')) {
+            a.setAttribute('href', `https://en.wikipedia.org${href}`);
+            a.setAttribute('target', '_blank');
+            a.setAttribute('rel', 'noopener noreferrer');
+          } else {
+            a.replaceWith(doc.createTextNode(a.textContent ?? ''));
+          }
+        });
+        parts.push(node.outerHTML);
+        node = node.nextElementSibling;
+      }
+
+      const sectionHtml = parts.join('').trim();
+      if (sectionHtml) sections.push({ heading, html: sectionHtml });
+    }
+
+    return sections;
+  } catch (e) {
+    console.error('[HistoryFlow] fetchArticleSections failed:', e);
+    return [];
   }
 }
