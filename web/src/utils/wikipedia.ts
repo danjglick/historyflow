@@ -118,7 +118,7 @@ async function fetchBatchChunk(titles: string[]): Promise<void> {
     //if (/\b(journal|review|magazine|museum|channel|institute|prize|professor|department)\b/i.test(page.title)) continue;
     if (!page.extract?.trim()) continue;
     const firstSentence = page.extract.split(/\.[\s\n]/)[0];
-    if (/\b(journal|film|review|account|exhibition|magazine|museum|channel|institute|prize|professor|department|professional|departments|singer|developer|version|publisher|documentary|book|volume|organization|organisation|lecture|examination|journal|club|monographic|website|programme|committee|games|library|list|association|monograph|platform|magazine|project|band|museum|publication|initiative|author|ministry|department|channel|podcast|album)\b/i.test(firstSentence)) continue;
+    if (/\b(journal|film|review|account|exhibition|magazine|museum|channel|institute|prize|professor|department|professional|departments|singer|developer|version|publisher|documentary|book|volume|organization|organisation|lecture|course|journal|club|monographic|website|programme|university|committee|games|library|list|association|monograph|platform|magazine|project|band|museum|publication|initiative|author|ministry|department|channel|podcast|album)\b/i.test(firstSentence)) continue;
     articleCache.set(page.title, {
       title: page.title,
       extract: page.extract.trim(),
