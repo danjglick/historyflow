@@ -20,33 +20,28 @@ function getFirstSentence(text: string): string {
   return result;
 }
 
-interface Section {
-  heading: string;
-  lines: string[];
-}
+interface Section { heading: string; lines: string[]; }
 
 function parseNamedSections(text: string): Section[] {
   const sections: Section[] = [];
-  let currentHeading: string | null = null;
-  let currentLines: string[] = [];
+  let current: Section | null = null;
 
   for (const line of text.split('\n')) {
-    const h2 = !line.startsWith('===') && line.match(/^==\s*(.+?)\s*==$/);
+    if (line.startsWith('===')) {
+      // subsection — treat as content
+      if (current) current.lines.push(line);
+      continue;
+    }
+    const h2 = line.match(/^==\s*(.+?)\s*==$/);
     if (h2) {
-      if (currentHeading !== null) {
-        sections.push({ heading: currentHeading, lines: currentLines });
-      }
-      currentHeading = h2[1];
-      currentLines = [];
-    } else if (currentHeading !== null) {
-      currentLines.push(line);
+      if (current) sections.push(current);
+      current = { heading: h2[1], lines: [] };
+    } else if (current) {
+      current.lines.push(line);
     }
   }
-  if (currentHeading !== null) {
-    sections.push({ heading: currentHeading, lines: currentLines });
-  }
-
-  return sections.filter(s => s.lines.some(l => l.trim()));
+  if (current) sections.push(current);
+  return sections;
 }
 
 function renderSections(sections: Section[], count: number) {
@@ -55,13 +50,13 @@ function renderSections(sections: Section[], count: number) {
     const s = sections[i];
     nodes.push(<h3 key={`h-${i}`} className="section-h2">{s.heading}</h3>);
     for (let j = 0; j < s.lines.length; j++) {
-      const line = s.lines[j];
+      const line = s.lines[j].trim();
+      if (!line) continue;
       const h3 = line.match(/^===\s*(.+?)\s*===$/);
-      const trimmed = line.trim();
       if (h3) {
-        nodes.push(<h4 key={`h3-${i}-${j}`} className="section-h3">{h3[1]}</h4>);
-      } else if (trimmed) {
-        nodes.push(<p key={`p-${i}-${j}`} className="article-extract">{trimmed}</p>);
+        nodes.push(<h4 key={`sh-${i}-${j}`} className="section-h3">{h3[1]}</h4>);
+      } else {
+        nodes.push(<p key={`p-${i}-${j}`} className="article-extract">{line}</p>);
       }
     }
   }
@@ -135,7 +130,9 @@ export default function App() {
       const text = await fetchFullArticle(title);
       const sections = text ? parseNamedSections(text) : [];
       setNamedSections(prev => new Map(prev).set(title, sections));
-      setSectionsVisible(prev => new Map(prev).set(title, 1));
+      if (sections.length > 0) {
+        setSectionsVisible(prev => new Map(prev).set(title, 1));
+      }
       setExpanding(prev => { const s = new Set(prev); s.delete(title); return s; });
     } else {
       setSectionsVisible(prev => new Map(prev).set(title, (prev.get(title) ?? 0) + 1));
@@ -168,10 +165,11 @@ export default function App() {
       <main className="feed">
         {articles.map((article, i) => {
           const isLeadExpanded = leadExpanded.has(article.title);
+          const sectionsFetched = namedSections.has(article.title);
           const sections = namedSections.get(article.title);
           const nVisible = sectionsVisible.get(article.title) ?? 0;
           const isExpanding = expanding.has(article.title);
-          const allSectionsVisible = sections !== undefined && nVisible >= sections.length;
+          const allSectionsVisible = sectionsFetched && (!sections || sections.length === 0 || nVisible >= sections.length);
           const allVisible = isLeadExpanded && allSectionsVisible;
           const firstSentence = getFirstSentence(article.extract);
 
