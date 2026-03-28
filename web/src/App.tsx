@@ -113,7 +113,10 @@ export default function App() {
     try {
       const { titles, nextOffset } = await searchHistoryArticles();
       const valid = await fetchArticlesBatch(titles);
-      setArticles(prev => [...prev, ...valid]);
+      setArticles(prev => {
+        const seen = new Set(prev.map(a => a.title));
+        return [...prev, ...valid.filter(a => !seen.has(a.title))];
+      });
       hasMoreRef.current = nextOffset !== null;
     } catch (e) {
       console.error('[HistoryFlow] load failed:', e);
@@ -127,13 +130,16 @@ export default function App() {
   const revealNextSection = useCallback(async (title: string) => {
     if (!namedSections.has(title)) {
       setExpanding(prev => new Set(prev).add(title));
-      const text = await fetchFullArticle(title);
-      const sections = text ? parseNamedSections(text) : [];
-      setNamedSections(prev => new Map(prev).set(title, sections));
-      if (sections.length > 0) {
-        setSectionsVisible(prev => new Map(prev).set(title, 1));
+      try {
+        const text = await fetchFullArticle(title);
+        const sections = text ? parseNamedSections(text) : [];
+        setNamedSections(prev => new Map(prev).set(title, sections));
+        if (sections.length > 0) {
+          setSectionsVisible(prev => new Map(prev).set(title, 1));
+        }
+      } finally {
+        setExpanding(prev => { const s = new Set(prev); s.delete(title); return s; });
       }
-      setExpanding(prev => { const s = new Set(prev); s.delete(title); return s; });
     } else {
       setSectionsVisible(prev => new Map(prev).set(title, (prev.get(title) ?? 0) + 1));
     }
