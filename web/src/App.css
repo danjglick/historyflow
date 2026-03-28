@@ -135,7 +135,7 @@ body {
 /* Title: system sans-serif, prominent */
 .article-title {
   font-family: -apple-system, 'SF Pro Display', system-ui, sans-serif;
-  font-size: 1.625rem;
+  font-size: 1.75rem;
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: -0.5px;
@@ -145,14 +145,14 @@ body {
 
 @media (max-width: 480px) {
   .article-title {
-    font-size: 1.375rem;
+    font-size: 1.5rem;
   }
 }
 
 /* Body extract: readable serif */
 .article-extract {
   font-family: ui-serif, 'New York', Georgia, 'Times New Roman', serif;
-  font-size: 1rem;
+  font-size: 1.25rem;
   line-height: 1.75;
   color: var(--text-body);
   margin-bottom: 1em;
@@ -160,7 +160,7 @@ body {
 
 @media (max-width: 480px) {
   .article-extract {
-    font-size: 0.9375rem;
+    font-size: 1.1875rem;
     line-height: 1.7;
   }
 }
@@ -169,7 +169,7 @@ body {
 
 .section-h2 {
   font-family: -apple-system, 'SF Pro Display', system-ui, sans-serif;
-  font-size: 1.125rem;
+  font-size: 1.25rem;
   font-weight: 600;
   letter-spacing: -0.2px;
   line-height: 1.25;
@@ -180,7 +180,7 @@ body {
 
 .section-h3 {
   font-family: -apple-system, 'SF Pro Display', system-ui, sans-serif;
-  font-size: 0.9375rem;
+  font-size: 1.0625rem;
   font-weight: 600;
   letter-spacing: -0.1px;
   line-height: 1.3;
@@ -203,7 +203,7 @@ body {
     0 1px 4px rgba(0, 0, 0, 0.06);
   border-radius: 100px;
   font-family: -apple-system, 'SF Pro Text', system-ui, sans-serif;
-  font-size: 0.9375rem;
+  font-size: 1.0625rem;
   font-weight: 500;
   letter-spacing: -0.1px;
   color: var(--btn-text);

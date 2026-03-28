@@ -115,10 +115,10 @@ async function fetchBatchChunk(titles: string[]): Promise<void> {
     if ('missing' in page) continue;
     if (page.pageprops?.disambiguation !== undefined) continue;
     if (/^(list of|timeline of|index of|outline of|lists of)/i.test(page.title)) continue;
-    if (/\b(journal|review|magazine|museum|channel|institute|professor|department)\b/i.test(page.title)) continue;
+    if (/\b(journal|review|magazine|museum|channel|institute|prize|professor|department)\b/i.test(page.title)) continue;
     if (!page.extract?.trim()) continue;
     const firstSentence = page.extract.split(/\.[\s\n]/)[0];
-    if (/\b(developer|publisher|book|journal|monographic|monograph|platform|author|channel|podcast|album)\b/i.test(firstSentence)) continue;
+    if (/\b(developer|version|publisher|book|volume|organization|journal|club|monographic|programme|committee|games|library|list|association|monograph|platform|magazine|project|band|museum|publication|initiative|author|ministry|department|channel|podcast|album)\b/i.test(firstSentence)) continue;
     articleCache.set(page.title, {
       title: page.title,
       extract: page.extract.trim(),
