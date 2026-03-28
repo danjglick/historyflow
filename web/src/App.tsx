@@ -3,6 +3,23 @@ import { searchHistoryArticles, fetchArticlesBatch, fetchFullArticle } from './u
 import type { WikiArticle } from './utils/wikipedia';
 import './App.css';
 
+const ABBREV = /^([A-Z]|Mr|Mrs|Ms|Dr|Prof|Sr|Jr|vs|St|Mt|Lt|Gen|Col|Maj|Capt|Gov|Sen|Rep|Rev|Dept|Inc|Corp|Ltd|est|approx|U\.S|U\.K|D\.C|i\.e|e\.g|etc|ca|c|pp|vol|no|lit)$/i;
+
+function getFirstSentence(text: string): string {
+  const parts = text.split('. ');
+  let result = parts[0];
+  for (let i = 1; i < parts.length; i++) {
+    const lastWord = result.split(/\s+/).pop() ?? '';
+    if (ABBREV.test(lastWord)) {
+      result += '. ' + parts[i];
+    } else {
+      break;
+    }
+  }
+  if (!/[.!?]$/.test(result)) result += '.';
+  return result;
+}
+
 interface Section {
   heading: string;
   lines: string[];
@@ -84,6 +101,7 @@ export default function App() {
   const [articles, setArticles] = useState<WikiArticle[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [leadExpanded, setLeadExpanded] = useState<Set<string>>(new Set());
   const [namedSections, setNamedSections] = useState<Map<string, Section[]>>(new Map());
   const [sectionsVisible, setSectionsVisible] = useState<Map<string, number>>(new Map());
   const [expanding, setExpanding] = useState<Set<string>>(new Set());
@@ -149,25 +167,34 @@ export default function App() {
       <FeedTitle />
       <main className="feed">
         {articles.map((article, i) => {
+          const isLeadExpanded = leadExpanded.has(article.title);
           const sections = namedSections.get(article.title);
           const nVisible = sectionsVisible.get(article.title) ?? 0;
           const isExpanding = expanding.has(article.title);
-          const allVisible = sections !== undefined && nVisible >= sections.length;
+          const allSectionsVisible = sections !== undefined && nVisible >= sections.length;
+          const allVisible = isLeadExpanded && allSectionsVisible;
+          const firstSentence = getFirstSentence(article.extract);
 
           return (
             <article key={`${article.title}-${i}`} className="article">
               <h2 className="article-title">{article.title}</h2>
               <div className="article-body">
-                {article.extract.split('\n').filter(Boolean).map((p, j) =>
-                  <p key={j} className="article-extract">{p.trim()}</p>
-                )}
-                {sections && renderSections(sections, nVisible)}
+                {isLeadExpanded
+                  ? article.extract.split('\n').filter(Boolean).map((p, j) =>
+                      <p key={j} className="article-extract">{p.trim()}</p>
+                    )
+                  : <p className="article-extract">{firstSentence}</p>
+                }
+                {isLeadExpanded && sections && renderSections(sections, nVisible)}
               </div>
               <button
                 onClick={() => {
                   if (allVisible) {
+                    setLeadExpanded(prev => { const s = new Set(prev); s.delete(article.title); return s; });
                     setNamedSections(prev => { const m = new Map(prev); m.delete(article.title); return m; });
                     setSectionsVisible(prev => { const m = new Map(prev); m.delete(article.title); return m; });
+                  } else if (!isLeadExpanded) {
+                    setLeadExpanded(prev => new Set(prev).add(article.title));
                   } else {
                     revealNextSection(article.title);
                   }
