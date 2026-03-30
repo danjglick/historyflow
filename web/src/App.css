@@ -121,6 +121,14 @@ body {
   overflow: visible;
 }
 
+.feed-subtitle {
+  margin: 6px 0 0;
+  font-size: 1.1rem;
+  color: var(--color-muted, #888);
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+
 /* Article card — no borders, just breathing room */
 .article {
   padding: 90px 22px 70px;

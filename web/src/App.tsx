@@ -88,6 +88,7 @@ function FeedTitle() {
           fill="currentColor"
         >HISTORYFLOW</text>
       </svg>
+      <p className="feed-subtitle">an endless stream of history, politics and culture, courtesy of wikipedia</p>
     </div>
   );
 }

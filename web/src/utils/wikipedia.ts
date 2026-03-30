@@ -20,6 +20,9 @@ const queries = [
   { term: 'intitle:ideology',  offset: Math.floor(Math.random() * 20) * 20, hasMore: true },
   { term: 'intitle:war',  offset: Math.floor(Math.random() * 20) * 20, hasMore: true },
   { term: 'intitle:philosophy',  offset: Math.floor(Math.random() * 20) * 20, hasMore: true },
+  { term: 'intitle:revolution',  offset: Math.floor(Math.random() * 20) * 20, hasMore: true },
+  { term: 'intitle:movement',  offset: Math.floor(Math.random() * 20) * 20, hasMore: true },
+  { term: 'intitle:protest',  offset: Math.floor(Math.random() * 20) * 20, hasMore: true },
 ];
 
 async function runSearch(term: string, offset: number): Promise<{ titles: string[]; nextOffset: number | null }> {
@@ -121,7 +124,7 @@ async function fetchBatchChunk(titles: string[]): Promise<void> {
     //if (/\b(journal|review|magazine|museum|channel|institute|prize|professor|department)\b/i.test(page.title)) continue;
     if (!page.extract?.trim()) continue;
     const firstSentence = page.extract.split(/\.[\s\n]/)[0];
-    if (/\b(journal|film|review|account|exhibition|magazine|born|multiplayer|playstation|xbox|inc|blog|chair|presentations|journals|franchise|ministerial|members|microbial|oxford|museum|channel|institute|philosopher|prize|professor|department|professional|departments|singer|developer|version|publisher|documentary|book|volume|organization|organisation|lecture|course|journal|club|monographic|website|programme|university|committee|games|library|essay|textbook|philosopher|forum|list|learned|association|monograph|platform|magazine|project|band|museum|publication|comics|subtitled|series|initiative|author|ministry|degree|show|articles|department|channel|podcast|album)\b/i.test(firstSentence)) continue;
+    if (/\b(journal|film|review|hottest|account|songs|exhibition|magazine|born|multiplayer|playstation|xbox|inc|blog|chair|presentations|journals|franchise|ministerial|members|microbial|oxford|museum|channel|institute|philosopher|prize|professor|department|professional|departments|singer|developer|version|publisher|documentary|book|volume|organization|organisation|lecture|course|journal|club|monographic|website|programme|university|committee|games|library|essay|textbook|philosopher|forum|list|learned|association|monograph|platform|magazine|project|band|museum|versions|publication|comics|river|writer|wii|school|subtitled|series|initiative|author|ministry|essayist|entomological|commemorative|non-profit|degree|show|encyclopedia|articles|department|channel|podcast|album)\b/i.test(firstSentence)) continue;
     articleCache.set(page.title, {
       title: page.title,
       extract: page.extract.trim(),
